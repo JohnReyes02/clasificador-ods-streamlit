@@ -4,6 +4,13 @@ Aplicación desarrollada con Streamlit para clasificar textos en español según
 
 El modelo utiliza un pipeline de procesamiento compuesto por TF-IDF, reducción dimensional mediante SVD y regresión logística.
 
+**Autores:**
+
+- Edwin John Fredy Reyes Aguirre
+- Jhon Jairo Hernández Quintero
+
+**Institución:** Universidad de los Andes
+
 ## Ejecutar localmente
 
 ```bash

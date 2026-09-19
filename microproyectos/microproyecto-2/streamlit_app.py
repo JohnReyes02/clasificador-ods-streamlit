@@ -108,6 +108,10 @@ if "input_text" not in st.session_state:
 
 st.markdown('<div class="eyebrow">Machine learning no supervisado · Microproyecto 2</div>', unsafe_allow_html=True)
 st.title("Clasificador de textos por Objetivo de Desarrollo Sostenible")
+st.caption(
+    "Autores: Edwin John Fredy Reyes Aguirre y Jhon Jairo Hernández Quintero "
+    "· Universidad de los Andes"
+)
 st.markdown(
     '<div class="subtitle">Escribe una iniciativa, necesidad o fragmento de documento. '
     "El modelo analizará su contenido y estimará el ODS con mayor relación semántica.</div>",
@@ -195,4 +199,3 @@ with st.expander("Alcance y limitaciones"):
         - La clasificación sirve como apoyo exploratorio y debe complementarse con revisión humana.
         """
     )
-
