@@ -33,6 +33,10 @@ ODS = {
 }
 
 EJEMPLOS = {
+    "Fin de la pobreza": (
+        "El programa brindará apoyo económico, capacitación laboral y acceso a "
+        "servicios básicos para familias que viven en condiciones de pobreza."
+    ),
     "Agua y saneamiento": (
         "Las comunidades rurales necesitan acceso continuo a agua potable, "
         "alcantarillado y servicios de saneamiento seguros."
@@ -48,6 +52,18 @@ EJEMPLOS = {
     "Igualdad de género": (
         "La política busca eliminar la violencia contra las mujeres y asegurar "
         "igualdad de oportunidades y participación en cargos de liderazgo."
+    ),
+    "Salud y bienestar": (
+        "La red de hospitales ampliará la atención primaria, la vacunación y los "
+        "servicios de salud mental para poblaciones vulnerables."
+    ),
+    "Trabajo decente": (
+        "La iniciativa promoverá empleos formales, salarios justos, entornos laborales "
+        "seguros y oportunidades de capacitación para personas jóvenes."
+    ),
+    "Ciudades sostenibles": (
+        "La ciudad mejorará el transporte público, ampliará las zonas verdes y "
+        "desarrollará viviendas seguras y asequibles cerca de los servicios esenciales."
     ),
 }
 
@@ -72,7 +88,6 @@ st.markdown(
                        letter-spacing: .06em; text-transform: uppercase;}
         .titulo-resultado {color: #153b2f; font-size: 1.55rem; font-weight: 750; margin: .2rem 0;}
         .confianza-resultado {color: #087f5b; font-size: 1rem; font-weight: 650;}
-        .diferencia-resultado {color: #52616b; font-size: .92rem; margin-top: .2rem;}
         footer {visibility: hidden;}
     </style>
     """,
@@ -189,6 +204,11 @@ def mostrar_grafico_probabilidades(clasificacion: pd.DataFrame) -> None:
     )
 
 
+def limpiar_texto() -> None:
+    """Vacía el texto de entrada almacenado en la sesión de Streamlit."""
+    st.session_state.texto_entrada = ""
+
+
 if "texto_entrada" not in st.session_state:
     st.session_state.texto_entrada = ""
 
@@ -240,11 +260,19 @@ with st.form("formulario_clasificacion"):
         placeholder="Ejemplo: El programa instalará sistemas de energía solar en comunidades rurales…",
         help="Puedes ingresar hasta 5.000 caracteres.",
     )
-    enviado = st.form_submit_button(
-        "Analizar texto",
-        type="primary",
-        use_container_width=True,
-    )
+    columna_analizar, columna_limpiar = st.columns([3, 1])
+    with columna_analizar:
+        enviado = st.form_submit_button(
+            "Analizar texto",
+            type="primary",
+            use_container_width=True,
+        )
+    with columna_limpiar:
+        st.form_submit_button(
+            "Limpiar texto",
+            on_click=limpiar_texto,
+            use_container_width=True,
+        )
 
 if enviado:
     texto_limpio = " ".join(texto.split())
@@ -253,8 +281,6 @@ if enviado:
     else:
         try:
             numero_ods, confianza, clasificacion = predecir(texto_limpio)
-            segunda_probabilidad = float(clasificacion["Probabilidad"].iloc[1])
-            diferencia_probabilidad = confianza - segunda_probabilidad
         except Exception as excepcion:
             st.error("No fue posible cargar el modelo o generar la predicción.")
             with st.expander("Detalle técnico"):
@@ -276,10 +302,6 @@ if enviado:
                         <div class="etiqueta-resultado">Predicción principal</div>
                         <div class="titulo-resultado">ODS {numero_ods} · {ODS[numero_ods][0]}</div>
                         <div class="confianza-resultado">Confianza estimada: {confianza:.1%}</div>
-                        <div class="diferencia-resultado">
-                            Diferencia frente a la segunda categoría:
-                            {diferencia_probabilidad * 100:.1f} puntos porcentuales
-                        </div>
                     </div>
                     """,
                     unsafe_allow_html=True,
