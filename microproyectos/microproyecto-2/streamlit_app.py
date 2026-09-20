@@ -72,6 +72,7 @@ st.markdown(
                        letter-spacing: .06em; text-transform: uppercase;}
         .titulo-resultado {color: #153b2f; font-size: 1.55rem; font-weight: 750; margin: .2rem 0;}
         .confianza-resultado {color: #087f5b; font-size: 1rem; font-weight: 650;}
+        .diferencia-resultado {color: #52616b; font-size: .92rem; margin-top: .2rem;}
         footer {visibility: hidden;}
     </style>
     """,
@@ -129,6 +130,63 @@ def predecir(texto: str) -> tuple[int, float, pd.DataFrame]:
         }
     ).set_index("ODS")
     return prediccion, float(confianza), clasificacion
+
+
+def mostrar_grafico_probabilidades(clasificacion: pd.DataFrame) -> None:
+    """Muestra las categorías ordenadas sobre una escala fija de 0 % a 100 %.
+
+    La configuración amplía las etiquetas de los ODS para evitar que sus nombres
+    se corten y muestra el porcentaje exacto al pasar el cursor sobre cada barra.
+
+    Parámetros:
+        clasificacion: Tabla indexada por ODS con una columna ``Probabilidad``.
+    """
+    datos_grafico = clasificacion.reset_index()
+    especificacion = {
+        "mark": {
+            "type": "bar",
+            "color": "#0b846e",
+            "cornerRadiusEnd": 4,
+        },
+        "encoding": {
+            "x": {
+                "field": "Probabilidad",
+                "type": "quantitative",
+                "scale": {"domain": [0, 1]},
+                "axis": {
+                    "title": "Probabilidad estimada",
+                    "format": ".0%",
+                    "values": [0, 0.2, 0.4, 0.6, 0.8, 1],
+                },
+            },
+            "y": {
+                "field": "ODS",
+                "type": "nominal",
+                "sort": "-x",
+                "axis": {
+                    "title": None,
+                    "labelFontSize": 13,
+                    "labelLimit": 360,
+                    "labelPadding": 8,
+                },
+            },
+            "tooltip": [
+                {"field": "ODS", "type": "nominal", "title": "Categoría"},
+                {
+                    "field": "Probabilidad",
+                    "type": "quantitative",
+                    "title": "Probabilidad",
+                    "format": ".1%",
+                },
+            ],
+        },
+        "height": {"step": 34},
+    }
+    st.vega_lite_chart(
+        datos_grafico,
+        spec=especificacion,
+        width="stretch",
+    )
 
 
 if "texto_entrada" not in st.session_state:
@@ -195,6 +253,8 @@ if enviado:
     else:
         try:
             numero_ods, confianza, clasificacion = predecir(texto_limpio)
+            segunda_probabilidad = float(clasificacion["Probabilidad"].iloc[1])
+            diferencia_probabilidad = confianza - segunda_probabilidad
         except Exception as excepcion:
             st.error("No fue posible cargar el modelo o generar la predicción.")
             with st.expander("Detalle técnico"):
@@ -216,20 +276,17 @@ if enviado:
                         <div class="etiqueta-resultado">Predicción principal</div>
                         <div class="titulo-resultado">ODS {numero_ods} · {ODS[numero_ods][0]}</div>
                         <div class="confianza-resultado">Confianza estimada: {confianza:.1%}</div>
+                        <div class="diferencia-resultado">
+                            Diferencia frente a la segunda categoría:
+                            {diferencia_probabilidad * 100:.1f} puntos porcentuales
+                        </div>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
 
-            st.subheader("Otras categorías consideradas")
-            st.bar_chart(
-                clasificacion,
-                horizontal=True,
-                sort="-Probabilidad",
-                color="#0b846e",
-                x_label="Probabilidad estimada",
-                y_label="",
-            )
+            st.subheader("Categorías con mayor probabilidad")
+            mostrar_grafico_probabilidades(clasificacion)
             st.caption(
                 "Las probabilidades reflejan la seguridad relativa del modelo, no una "
                 "evaluación oficial de Naciones Unidas. Un texto puede relacionarse con varios ODS."
