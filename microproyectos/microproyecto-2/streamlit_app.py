@@ -225,6 +225,7 @@ if enviado:
             st.bar_chart(
                 clasificacion,
                 horizontal=True,
+                sort="-Probabilidad",
                 color="#0b846e",
                 x_label="Probabilidad estimada",
                 y_label="",
