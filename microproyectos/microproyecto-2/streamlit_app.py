@@ -32,6 +32,26 @@ ODS = {
     17: ("Alianzas para lograr los objetivos", "ods-17-alianzas-para-lograr-los-objetivos.png"),
 }
 
+COLORES_ODS = {
+    1: "#E5243B",
+    2: "#DDA63A",
+    3: "#4C9F38",
+    4: "#C5192D",
+    5: "#FF3A21",
+    6: "#26BDE2",
+    7: "#FCC30B",
+    8: "#A21942",
+    9: "#FD6925",
+    10: "#DD1367",
+    11: "#FD9D24",
+    12: "#BF8B2E",
+    13: "#3F7E44",
+    14: "#0A97D9",
+    15: "#56C02B",
+    16: "#00689D",
+    17: "#19486A",
+}
+
 EJEMPLOS = {
     "Fin de la pobreza": (
         "El programa brindará apoyo económico, capacitación laboral y acceso a "
@@ -87,7 +107,7 @@ st.markdown(
         .etiqueta-resultado {color: #52616b; font-size: .8rem; font-weight: 700;
                        letter-spacing: .06em; text-transform: uppercase;}
         .titulo-resultado {color: #153b2f; font-size: 1.55rem; font-weight: 750; margin: .2rem 0;}
-        .confianza-resultado {color: #087f5b; font-size: 1rem; font-weight: 650;}
+        .lectura-resultado {color: #425466; font-size: 1rem; margin-top: .45rem;}
         footer {visibility: hidden;}
     </style>
     """,
@@ -147,55 +167,148 @@ def predecir(texto: str) -> tuple[int, float, pd.DataFrame]:
     return prediccion, float(confianza), clasificacion
 
 
-def mostrar_grafico_probabilidades(clasificacion: pd.DataFrame) -> None:
-    """Muestra las categorías ordenadas sobre una escala fija de 0 % a 100 %.
+def construir_narrativa(clasificacion: pd.DataFrame) -> dict:
+    """Interpreta la distribución para priorizar el mensaje visual principal."""
+    datos = clasificacion.reset_index()
+    primera = datos.iloc[0]
+    segunda = datos.iloc[1]
+    probabilidad_principal = float(primera["Probabilidad"])
+    probabilidad_secundaria = float(segunda["Probabilidad"])
+    diferencia = probabilidad_principal - probabilidad_secundaria
+    numero_principal = str(primera["ODS"]).split(" · ", maxsplit=1)[0]
 
-    La configuración amplía las etiquetas de los ODS para evitar que sus nombres
-    se corten y muestra el porcentaje exacto al pasar el cursor sobre cada barra.
+    if probabilidad_principal < 0.45:
+        return {
+            "modo": "incierto",
+            "titulo": (
+                f"Resultado incierto: {numero_principal} es el candidato principal"
+            ),
+            "descripcion": (
+                f"Alcanza {probabilidad_principal:.1%}, pero la evidencia no permite "
+                "asignar una categoría con suficiente claridad."
+            ),
+        }
 
-    Parámetros:
-        clasificacion: Tabla indexada por ODS con una columna ``Probabilidad``.
-    """
-    datos_grafico = clasificacion.reset_index()
+    if probabilidad_secundaria >= 0.20 or diferencia < 0.20:
+        primera_corta = str(primera["ODS"]).split(" · ", maxsplit=1)[-1]
+        segunda_corta = str(segunda["ODS"]).split(" · ", maxsplit=1)[-1]
+        probabilidad_conjunta = probabilidad_principal + probabilidad_secundaria
+        return {
+            "modo": "compartido",
+            "titulo": (
+                f"El texto combina {primera_corta.lower()} con "
+                f"{segunda_corta.lower()}"
+            ),
+            "descripcion": (
+                f"Las dos categorías principales concentran {probabilidad_conjunta:.1%} "
+                "de la probabilidad estimada."
+            ),
+        }
+
+    primera_corta = str(primera["ODS"]).split(" · ", maxsplit=1)[-1]
+    if probabilidad_principal >= 0.75 and diferencia >= 0.35:
+        return {
+            "modo": "dominante",
+            "titulo": f"El texto se relaciona claramente con {primera_corta.lower()}",
+            "descripcion": (
+                f"La categoría principal reúne {probabilidad_principal:.1%} y supera a la "
+                f"segunda alternativa por {diferencia:.1%}."
+            ),
+        }
+
+    return {
+        "modo": "moderado",
+        "titulo": f"El {numero_principal} es la categoría más probable",
+        "descripcion": (
+            f"Reúne {probabilidad_principal:.1%} y supera por {diferencia:.1%} a la "
+            "siguiente alternativa, aunque parte de la evidencia se distribuye entre "
+            "otros ODS."
+        ),
+    }
+
+
+def preparar_datos_grafico(
+    clasificacion: pd.DataFrame,
+) -> pd.DataFrame:
+    """Prepara cinco categorías y resalta únicamente la predicción principal."""
+    datos = clasificacion.reset_index().copy()
+    datos["NumeroODS"] = datos["ODS"].str.extract(r"ODS (\d+)").astype(int)
+    visibles = datos.iloc[:5].copy()
+    visibles["Orden"] = range(len(visibles))
+    visibles["Color"] = "#C9D1D9"
+    numero_ods = int(visibles.loc[0, "NumeroODS"])
+    visibles.loc[0, "Color"] = COLORES_ODS[numero_ods]
+    visibles["Porcentaje"] = visibles["Probabilidad"].map(lambda valor: f"{valor:.1%}")
+    return visibles
+
+
+def mostrar_grafico_probabilidades(
+    clasificacion: pd.DataFrame,
+) -> None:
+    """Cuenta la distribución con etiquetas directas y énfasis selectivo."""
+    datos_grafico = preparar_datos_grafico(clasificacion)
+    eje_x = {
+        "field": "Probabilidad",
+        "type": "quantitative",
+        "scale": {"domain": [0, 1.08]},
+        "axis": {
+            "title": "Probabilidad estimada",
+            "format": ".0%",
+            "values": [0, 0.25, 0.5, 0.75, 1],
+            "grid": False,
+        },
+    }
+    eje_y = {
+        "field": "ODS",
+        "type": "nominal",
+        "sort": {"field": "Orden", "order": "ascending"},
+        "axis": {
+            "title": None,
+            "labelFontSize": 13,
+            "labelLimit": 390,
+            "labelPadding": 8,
+        },
+    }
     especificacion = {
-        "mark": {
-            "type": "bar",
-            "color": "#0b846e",
-            "cornerRadiusEnd": 4,
-        },
-        "encoding": {
-            "x": {
-                "field": "Probabilidad",
-                "type": "quantitative",
-                "scale": {"domain": [0, 1]},
-                "axis": {
-                    "title": "Probabilidad estimada",
-                    "format": ".0%",
-                    "values": [0, 0.2, 0.4, 0.6, 0.8, 1],
+        "layer": [
+            {
+                "mark": {"type": "bar", "cornerRadiusEnd": 4},
+                "encoding": {
+                    "x": eje_x,
+                    "y": eje_y,
+                    "color": {"field": "Color", "type": "nominal", "scale": None},
+                    "tooltip": [
+                        {"field": "ODS", "type": "nominal", "title": "Categoría"},
+                        {
+                            "field": "Probabilidad",
+                            "type": "quantitative",
+                            "title": "Probabilidad",
+                            "format": ".1%",
+                        },
+                    ],
                 },
             },
-            "y": {
-                "field": "ODS",
-                "type": "nominal",
-                "sort": "-x",
-                "axis": {
-                    "title": None,
-                    "labelFontSize": 13,
-                    "labelLimit": 360,
-                    "labelPadding": 8,
+            {
+                "mark": {
+                    "type": "text",
+                    "align": "left",
+                    "baseline": "middle",
+                    "dx": 7,
+                    "fontSize": 13,
+                    "fontWeight": 600,
+                    "color": "#334155",
+                    "stroke": "#FFFFFF",
+                    "strokeWidth": 0.5,
+                },
+                "encoding": {
+                    "x": {"field": "Probabilidad", "type": "quantitative"},
+                    "y": eje_y,
+                    "text": {"field": "Porcentaje", "type": "nominal"},
                 },
             },
-            "tooltip": [
-                {"field": "ODS", "type": "nominal", "title": "Categoría"},
-                {
-                    "field": "Probabilidad",
-                    "type": "quantitative",
-                    "title": "Probabilidad",
-                    "format": ".1%",
-                },
-            ],
-        },
-        "height": {"step": 34},
+        ],
+        "height": {"step": 42},
+        "config": {"view": {"stroke": None}},
     }
     st.vega_lite_chart(
         datos_grafico,
@@ -236,7 +349,7 @@ with st.sidebar:
     )
     if st.button(
         "Usar este ejemplo",
-        use_container_width=True,
+        width="stretch",
         disabled=ejemplo_seleccionado == "— Elegir —",
     ):
         st.session_state.texto_entrada = EJEMPLOS[ejemplo_seleccionado]
@@ -265,13 +378,13 @@ with st.form("formulario_clasificacion"):
         enviado = st.form_submit_button(
             "Analizar texto",
             type="primary",
-            use_container_width=True,
+            width="stretch",
         )
     with columna_limpiar:
         st.form_submit_button(
             "Limpiar texto",
             on_click=limpiar_texto,
-            use_container_width=True,
+            width="stretch",
         )
 
 if enviado:
@@ -280,12 +393,18 @@ if enviado:
         st.warning("Escribe un texto un poco más descriptivo (al menos 20 caracteres).")
     else:
         try:
-            numero_ods, confianza, clasificacion = predecir(texto_limpio)
+            numero_ods, _, clasificacion = predecir(texto_limpio)
         except Exception as excepcion:
             st.error("No fue posible cargar el modelo o generar la predicción.")
             with st.expander("Detalle técnico"):
                 st.code(f"{type(excepcion).__name__}: {excepcion}")
         else:
+            narrativa = construir_narrativa(clasificacion)
+            resultado_incierto = narrativa["modo"] == "incierto"
+            etiqueta_resultado = (
+                "Resultado incierto" if resultado_incierto else "Lectura principal"
+            )
+            color_borde = "#F59E0B" if resultado_incierto else COLORES_ODS[numero_ods]
             st.divider()
             columna_imagen, columna_resultado = st.columns(
                 [1, 3],
@@ -298,21 +417,28 @@ if enviado:
             with columna_resultado:
                 st.markdown(
                     f"""
-                    <div class="tarjeta-resultado">
-                        <div class="etiqueta-resultado">Predicción principal</div>
-                        <div class="titulo-resultado">ODS {numero_ods} · {ODS[numero_ods][0]}</div>
-                        <div class="confianza-resultado">Confianza estimada: {confianza:.1%}</div>
+                    <div class="tarjeta-resultado" style="border-left: 6px solid {color_borde};">
+                        <div class="etiqueta-resultado">{etiqueta_resultado}</div>
+                        <div class="titulo-resultado">{narrativa["titulo"]}</div>
+                        <div class="lectura-resultado">{narrativa["descripcion"]}</div>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
 
-            st.subheader("Categorías con mayor probabilidad")
+            st.subheader("Cómo se distribuye la clasificación")
             mostrar_grafico_probabilidades(clasificacion)
             st.caption(
                 "Las probabilidades reflejan la seguridad relativa del modelo, no una "
                 "evaluación oficial de Naciones Unidas. Un texto puede relacionarse con varios ODS."
             )
+
+            with st.expander("Ver las cinco probabilidades principales"):
+                detalle = clasificacion.copy()
+                detalle["Probabilidad"] = detalle["Probabilidad"].map(
+                    lambda valor: f"{valor:.1%}"
+                )
+                st.dataframe(detalle, width="stretch")
 
 with st.expander("Alcance y limitaciones"):
     st.markdown(
