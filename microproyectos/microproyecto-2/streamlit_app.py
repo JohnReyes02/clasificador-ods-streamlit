@@ -7,10 +7,10 @@ import pandas as pd
 import streamlit as st
 
 
-APP_DIR = Path(__file__).resolve().parent
-REPO_DIR = APP_DIR.parents[1]
-MODEL_PATH = APP_DIR / "mejor_modelo_clasificacion.joblib"
-ICONS_DIR = REPO_DIR / "assets" / "ods"
+DIRECTORIO_APLICACION = Path(__file__).resolve().parent
+DIRECTORIO_REPOSITORIO = DIRECTORIO_APLICACION.parents[1]
+RUTA_MODELO = DIRECTORIO_APLICACION / "mejor_modelo_clasificacion.joblib"
+DIRECTORIO_ICONOS = DIRECTORIO_REPOSITORIO / "assets" / "ods"
 
 ODS = {
     1: ("Fin de la pobreza", "ods-01-fin-de-la-pobreza.png"),
@@ -32,7 +32,7 @@ ODS = {
     17: ("Alianzas para lograr los objetivos", "ods-17-alianzas-para-lograr-los-objetivos.png"),
 }
 
-EXAMPLES = {
+EJEMPLOS = {
     "Agua y saneamiento": (
         "Las comunidades rurales necesitan acceso continuo a agua potable, "
         "alcantarillado y servicios de saneamiento seguros."
@@ -63,15 +63,15 @@ st.markdown(
     <style>
         .block-container {max-width: 1050px; padding-top: 2.4rem; padding-bottom: 3rem;}
         [data-testid="stForm"] {border: 1px solid #dce6e2; border-radius: 16px; padding: 1.2rem;}
-        .eyebrow {color: #087f5b; font-size: .78rem; font-weight: 700; letter-spacing: .08em;
+        .encabezado-menor {color: #087f5b; font-size: .78rem; font-weight: 700; letter-spacing: .08em;
                   margin-bottom: .35rem; text-transform: uppercase;}
-        .subtitle {color: #52616b; font-size: 1.08rem; max-width: 760px; margin-bottom: 1.4rem;}
-        .result-card {background: linear-gradient(135deg, #f2fbf7 0%, #eef6fb 100%);
+        .subtitulo {color: #52616b; font-size: 1.08rem; max-width: 760px; margin-bottom: 1.4rem;}
+        .tarjeta-resultado {background: linear-gradient(135deg, #f2fbf7 0%, #eef6fb 100%);
                       border: 1px solid #cfe4da; border-radius: 18px; padding: 1.3rem 1.5rem;}
-        .result-label {color: #52616b; font-size: .8rem; font-weight: 700;
+        .etiqueta-resultado {color: #52616b; font-size: .8rem; font-weight: 700;
                        letter-spacing: .06em; text-transform: uppercase;}
-        .result-title {color: #153b2f; font-size: 1.55rem; font-weight: 750; margin: .2rem 0;}
-        .result-confidence {color: #087f5b; font-size: 1rem; font-weight: 650;}
+        .titulo-resultado {color: #153b2f; font-size: 1.55rem; font-weight: 750; margin: .2rem 0;}
+        .confianza-resultado {color: #087f5b; font-size: 1rem; font-weight: 650;}
         footer {visibility: hidden;}
     </style>
     """,
@@ -80,99 +80,142 @@ st.markdown(
 
 
 @st.cache_resource(show_spinner="Cargando el modelo de clasificación…")
-def load_model():
-    """Load the complete TF-IDF → SVD → logistic regression pipeline once."""
-    if not MODEL_PATH.is_file():
-        raise FileNotFoundError(f"No se encontró el modelo en {MODEL_PATH}")
-    return joblib.load(MODEL_PATH)
+def cargar_modelo():
+    """Carga y conserva en memoria el modelo completo de clasificación.
+
+    Streamlit almacena el resultado en caché para evitar leer el archivo y
+    reconstruir el flujo TF-IDF → SVD → regresión logística en cada
+    interacción del usuario.
+
+    Devuelve:
+        El flujo de clasificación previamente entrenado.
+
+    Excepciones:
+        FileNotFoundError: Si el archivo del modelo no existe en la ruta esperada.
+    """
+    if not RUTA_MODELO.is_file():
+        raise FileNotFoundError(f"No se encontró el modelo en {RUTA_MODELO}")
+    return joblib.load(RUTA_MODELO)
 
 
-def predict(text: str) -> tuple[int, float, pd.DataFrame]:
-    """Return the predicted ODS, its probability, and the five best options."""
-    model = load_model()
-    probabilities = model.predict_proba([text])[0]
-    classes = [int(value) for value in model.classes_]
-    scores = sorted(zip(classes, probabilities), key=lambda item: item[1], reverse=True)
-    prediction, confidence = scores[0]
-    ranking = pd.DataFrame(
+def predecir(texto: str) -> tuple[int, float, pd.DataFrame]:
+    """Estima el ODS que guarda mayor relación con un texto.
+
+    Parámetros:
+        texto: Fragmento en español que se desea clasificar.
+
+    Devuelve:
+        Una tupla con el número del ODS predicho, la confianza de la predicción
+        y una tabla con las cinco categorías que obtuvieron mayor probabilidad.
+    """
+    modelo = cargar_modelo()
+    probabilidades = modelo.predict_proba([texto])[0]
+    clases = [int(valor) for valor in modelo.classes_]
+    puntuaciones = sorted(
+        zip(clases, probabilidades),
+        key=lambda elemento: elemento[1],
+        reverse=True,
+    )
+    prediccion, confianza = puntuaciones[0]
+    clasificacion = pd.DataFrame(
         {
-            "ODS": [f"ODS {number} · {ODS[number][0]}" for number, _ in scores[:5]],
-            "Probabilidad": [probability for _, probability in scores[:5]],
+            "ODS": [
+                f"ODS {numero} · {ODS[numero][0]}"
+                for numero, _ in puntuaciones[:5]
+            ],
+            "Probabilidad": [
+                probabilidad for _, probabilidad in puntuaciones[:5]
+            ],
         }
     ).set_index("ODS")
-    return prediction, float(confidence), ranking
+    return prediccion, float(confianza), clasificacion
 
 
-if "input_text" not in st.session_state:
-    st.session_state.input_text = ""
+if "texto_entrada" not in st.session_state:
+    st.session_state.texto_entrada = ""
 
-st.markdown('<div class="eyebrow">Machine learning no supervisado · Microproyecto 2</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="encabezado-menor">Aprendizaje automático supervisado · Microproyecto 2</div>',
+    unsafe_allow_html=True,
+)
 st.title("Clasificador de textos por Objetivo de Desarrollo Sostenible")
 st.caption(
     "Autores: Edwin John Fredy Reyes Aguirre y Jhon Jairo Hernández Quintero "
     "· Universidad de los Andes"
 )
 st.markdown(
-    '<div class="subtitle">Escribe una iniciativa, necesidad o fragmento de documento. '
+    '<div class="subtitulo">Escribe una iniciativa, necesidad o fragmento de documento. '
     "El modelo analizará su contenido y estimará el ODS con mayor relación semántica.</div>",
     unsafe_allow_html=True,
 )
 
 with st.sidebar:
     st.header("Ejemplos")
-    selected_example = st.selectbox(
+    ejemplo_seleccionado = st.selectbox(
         "Selecciona un tema",
-        ["— Elegir —", *EXAMPLES],
+        ["— Elegir —", *EJEMPLOS],
         label_visibility="collapsed",
     )
-    if st.button("Usar este ejemplo", use_container_width=True, disabled=selected_example == "— Elegir —"):
-        st.session_state.input_text = EXAMPLES[selected_example]
+    if st.button(
+        "Usar este ejemplo",
+        use_container_width=True,
+        disabled=ejemplo_seleccionado == "— Elegir —",
+    ):
+        st.session_state.texto_entrada = EJEMPLOS[ejemplo_seleccionado]
         st.rerun()
 
     st.divider()
     st.markdown("**Acerca del modelo**")
     st.caption(
-        "Pipeline completo con TF-IDF, reducción dimensional mediante SVD y "
+        "Flujo completo de procesamiento con TF-IDF, reducción dimensional "
+        "mediante SVD y "
         "regresión logística. Fue entrenado con las 16 clases presentes en el "
         "conjunto de datos (ODS 1 a 16)."
     )
 
-with st.form("classification_form"):
-    text = st.text_area(
+with st.form("formulario_clasificacion"):
+    texto = st.text_area(
         "Texto para analizar",
-        key="input_text",
+        key="texto_entrada",
         height=180,
         max_chars=5000,
         placeholder="Ejemplo: El programa instalará sistemas de energía solar en comunidades rurales…",
         help="Puedes ingresar hasta 5.000 caracteres.",
     )
-    submitted = st.form_submit_button("Analizar texto", type="primary", use_container_width=True)
+    enviado = st.form_submit_button(
+        "Analizar texto",
+        type="primary",
+        use_container_width=True,
+    )
 
-if submitted:
-    clean_text = " ".join(text.split())
-    if len(clean_text) < 20:
+if enviado:
+    texto_limpio = " ".join(texto.split())
+    if len(texto_limpio) < 20:
         st.warning("Escribe un texto un poco más descriptivo (al menos 20 caracteres).")
     else:
         try:
-            ods_number, confidence, ranking = predict(clean_text)
-        except Exception as error:
+            numero_ods, confianza, clasificacion = predecir(texto_limpio)
+        except Exception as excepcion:
             st.error("No fue posible cargar el modelo o generar la predicción.")
             with st.expander("Detalle técnico"):
-                st.code(f"{type(error).__name__}: {error}")
+                st.code(f"{type(excepcion).__name__}: {excepcion}")
         else:
             st.divider()
-            image_column, result_column = st.columns([1, 3], vertical_alignment="center")
-            with image_column:
-                icon_path = ICONS_DIR / ODS[ods_number][1]
-                if icon_path.is_file():
-                    st.image(str(icon_path), width=180)
-            with result_column:
+            columna_imagen, columna_resultado = st.columns(
+                [1, 3],
+                vertical_alignment="center",
+            )
+            with columna_imagen:
+                ruta_icono = DIRECTORIO_ICONOS / ODS[numero_ods][1]
+                if ruta_icono.is_file():
+                    st.image(str(ruta_icono), width=180)
+            with columna_resultado:
                 st.markdown(
                     f"""
-                    <div class="result-card">
-                        <div class="result-label">Predicción principal</div>
-                        <div class="result-title">ODS {ods_number} · {ODS[ods_number][0]}</div>
-                        <div class="result-confidence">Confianza estimada: {confidence:.1%}</div>
+                    <div class="tarjeta-resultado">
+                        <div class="etiqueta-resultado">Predicción principal</div>
+                        <div class="titulo-resultado">ODS {numero_ods} · {ODS[numero_ods][0]}</div>
+                        <div class="confianza-resultado">Confianza estimada: {confianza:.1%}</div>
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -180,7 +223,7 @@ if submitted:
 
             st.subheader("Otras categorías consideradas")
             st.bar_chart(
-                ranking,
+                clasificacion,
                 horizontal=True,
                 color="#0b846e",
                 x_label="Probabilidad estimada",
