@@ -108,6 +108,9 @@ st.markdown(
                        letter-spacing: .06em; text-transform: uppercase;}
         .titulo-resultado {color: #153b2f; font-size: 1.55rem; font-weight: 750; margin: .2rem 0;}
         .lectura-resultado {color: #425466; font-size: 1rem; margin-top: .45rem;}
+        @media (max-width: 640px) {
+            .block-container {padding-top: 3.5rem;}
+        }
         footer {visibility: hidden;}
     </style>
     """,
@@ -326,7 +329,7 @@ if "texto_entrada" not in st.session_state:
     st.session_state.texto_entrada = ""
 
 st.markdown(
-    '<div class="encabezado-menor">Aprendizaje automático supervisado · Microproyecto 2</div>',
+    '<div class="encabezado-menor">Machine Learning No Supervisado · Microproyecto 2</div>',
     unsafe_allow_html=True,
 )
 st.title("Clasificador de textos por Objetivo de Desarrollo Sostenible")
